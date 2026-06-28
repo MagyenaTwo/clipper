@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ClipSpark{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+
+    <div class="lg:hidden p-4 border-b border-slate-200 bg-white/80 backdrop-blur-md flex justify-between items-center sticky top-0 z-10">
+        <a href="/" class="font-bold tracking-tight">ClipSpark</a>
+        <button onclick="document.getElementById('mobileMenu').classList.toggle('hidden')">
+            <i class="fa-solid fa-bars text-xl"></i>
+        </button>
+    </div>
+
+    <div id="mobileMenu" class="hidden lg:hidden bg-white border-b border-slate-200 p-4 space-y-2">
+        <a href="/home" class="block p-2 font-medium bg-slate-100 rounded">Home</a>
+        <a href="/clip" class="block p-2 text-slate-500 hover:text-slate-900">Clip Video</a>
+        <a href="/discover" class="block p-2 text-slate-500 hover:text-slate-900">Discover Trends</a>
+        <a href="/generator" class="block p-2 text-slate-500 hover:text-slate-900">Buat Video AI</a>
+        <a href="/scripts" class="block p-2 text-slate-500 hover:text-slate-900">Script Editor</a>
+    </div>
+
+    <div class="flex">
+        <aside class="hidden lg:flex w-64 border-r border-slate-200 p-6 flex-col bg-white h-screen sticky top-0">
+            <div class="flex items-center gap-3 mb-10">
+                <a href="/">
+                    <div class="w-9 h-9 bg-slate-900 rounded-xl flex items-center justify-center">
+                        <i class="fa-solid fa-bolt text-white text-sm"></i>
+                    </div>
+                </a>
+                <span class="font-bold text-xl tracking-tighter">ClipSpark</span>
+            </div>
+            
+            <nav class="space-y-6">
+                <div>
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 px-4">Menu Utama</div>
+                  
+                    <a href="/home" class="flex items-center gap-3 px-4 py-2.5 rounded-xl transition
+                        {{ 'bg-slate-900 text-white shadow-sm' if request.url.path == '/home' else 'text-slate-600 hover:bg-slate-100' }}">
+                        <i class="fa-solid fa-home"></i> Home
+                    </a>
+
+                    <a href="/clip" class="flex items-center gap-3 px-4 py-2.5 rounded-xl transition
+                        {{ 'bg-slate-900 text-white shadow-sm' if request.url.path == '/clip' else 'text-slate-600 hover:bg-slate-100' }}">
+                        <i class="fa-solid fa-scissors"></i> Clip Video
+                    </a>
+                    
+                    <a href="/discover" class="flex items-center gap-3 px-4 py-2.5 rounded-xl transition
+                        {{ 'bg-slate-900 text-white shadow-sm' if request.url.path == '/discover' else 'text-slate-600 hover:bg-slate-100' }}">
+                        <i class="fa-solid fa-fire text-orange-400"></i> Discover Trends
+                    </a>
+                </div>
+                
+                <div>
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 px-4">Workspace</div>
+                    
+                    <a href="/generator" class="flex items-center gap-3 px-4 py-2.5 rounded-xl transition mb-1
+                        {{ 'bg-slate-900 text-white shadow-sm' if request.url.path == '/generator' else 'text-slate-600 hover:bg-slate-100' }}">
+                        <i class="fa-solid fa-robot text-purple-500"></i> Buat Video AI
+                    </a>
+
+                    <a href="/scripts" class="flex items-center gap-3 px-4 py-2.5 rounded-xl transition
+                        {{ 'bg-slate-900 text-white shadow-sm' if request.url.path == '/scripts' else 'text-slate-600 hover:bg-slate-100' }}">
+                        <i class="fa-solid fa-pen-nib"></i> Script Editor
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <main class="flex-1 p-6 lg:p-12 max-w-7xl mx-auto">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

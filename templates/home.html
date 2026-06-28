@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | ClipSpark{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <header>
+        <h1 class="text-3xl font-bold text-slate-900">Halo, Kreator! 👋</h1>
+        <p class="text-slate-500 mt-1">Apa yang ingin Anda kerjakan hari ini?</p>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+            <div class="text-slate-400 mb-2"><i class="fa-solid fa-scissors"></i></div>
+            <h2 class="text-2xl font-bold">12</h2>
+            <p class="text-xs text-slate-400 uppercase tracking-widest font-bold">Klip Diproses</p>
+        </div>
+        <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+            <div class="text-slate-400 mb-2"><i class="fa-solid fa-pen-nib"></i></div>
+            <h2 class="text-2xl font-bold">8</h2>
+            <p class="text-xs text-slate-400 uppercase tracking-widest font-bold">Naskah Selesai</p>
+        </div>
+        <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+            <div class="text-slate-400 mb-2"><i class="fa-solid fa-fire"></i></div>
+            <h2 class="text-2xl font-bold">24</h2>
+            <p class="text-xs text-slate-400 uppercase tracking-widest font-bold">Tren Ditemukan</p>
+        </div>
+    </div>
+
+    <section>
+        <h3 class="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wider">Aksi Cepat</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <a href="/clip" class="group p-6 bg-white border border-slate-200 rounded-3xl hover:border-slate-900 transition flex items-center justify-between">
+                <div>
+                    <h4 class="font-bold text-lg">Clip Video Baru</h4>
+                    <p class="text-sm text-slate-500">Mulai potong video panjang Anda.</p>
+                </div>
+                <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-slate-900 transition"></i>
+            </a>
+            <a href="/scripts" class="group p-6 bg-white border border-slate-200 rounded-3xl hover:border-slate-900 transition flex items-center justify-between">
+                <div>
+                    <h4 class="font-bold text-lg">Tulis Naskah</h4>
+                    <p class="text-sm text-slate-500">Gunakan AI untuk narasi video.</p>
+                </div>
+                <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-slate-900 transition"></i>
+            </a>
+        </div>
+    </section>
+</div>
+{% endblock %}
