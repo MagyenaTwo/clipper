@@ -124,6 +124,18 @@ async def generator(request: Request):
     return templates.TemplateResponse("generator.html", {"request": request, "title": "Generator"})
 
 
+@app.get("/privacy-policy", response_class=HTMLResponse)
+async def privacy_policy(request: Request):
+    # 'privacy_policy.html' akan merender 'base.html' melalui template inheritance
+    return templates.TemplateResponse("privacy_policy.html", {"request": request, "title": "Privacy Policy"})
+
+
+@app.get("/data-deletion", response_class=HTMLResponse)
+async def data_deletion(request: Request):
+    # 'data_deletion.html' akan merender 'base.html' melalui template inheritance
+    return templates.TemplateResponse("data_deletion.html", {"request": request, "title": "Data Deletion Instructions"})
+
+
 def download_and_cut_video(youtube_url: str, start_time: int, end_time: int, output_title: str) -> str:
     safe_title = clean_filename(output_title)
     filename = f"{safe_title}_{start_time}_{end_time}.mp4"
