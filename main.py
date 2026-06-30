@@ -1,22 +1,25 @@
 import logging
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 from typing import List
 from urllib import response
 import uuid
-from fastapi import FastAPI, File, Request, Form, UploadFile, requests
+from fastapi import FastAPI, File, HTTPException, Request, Form, UploadFile, requests
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
-from moviepy import ImageClip, concatenate_videoclips
+from moviepy import ImageClip, VideoFileClip, concatenate_videoclips
+from pydantic import BaseModel
 import requests
 import whisper
 from youtube_transcript_api import YouTubeTranscriptApi
 import youtube_transcript_api
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
+import yt_dlp
 from ai_engine import analyze_transcript_with_ai, get_model_status, search_youtube_trending
 
 
@@ -32,9 +35,30 @@ app = FastAPI(title="ClipSpark AI")
 if not os.path.exists("static/clips"):
     os.makedirs("static/clips", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+FB_PAGE_ID = os.getenv("FB_PAGE_ID")
+FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
+CLIPS_DIR = "static/clips"
+if not os.path.exists(CLIPS_DIR):
+    os.makedirs(CLIPS_DIR, exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 templates = Jinja2Templates(directory="templates")
+DB_PATH = "database.db"
 
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS posted_videos (
+            video_id TEXT PRIMARY KEY,
+            fb_id TEXT,
+            posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
 MODEL_OPTIONS = [ #nararouter
     {"name": "mimo-v2.5-free", "status": "operational"},
     {"name": "mistral-large", "status": "operational"},
@@ -79,6 +103,13 @@ OPENROUTER_MODELS = [ #openrouter
     {"label": "Qwen3 Coder 480B A35B (free)", "value": "qwen/qwen3-coder-480b-a35b", "status": "operational"},
 ]
 MODEL_STATUS_CACHE = {m["name"]: "operational" for m in MODEL_OPTIONS}
+class ChannelSearchRequest(BaseModel):
+    channel_name: str
+    page: int = 1
+
+class FacebookPostRequest(BaseModel):
+    video_id: str
+    title: str
 
 def clean_filename(text: str) -> str:
     cleaned = re.sub(r'[^\w\s-]', '', text.lower())
@@ -123,17 +154,10 @@ async def generator(request: Request):
     # 'index.html' akan merender 'base.html' melalui template inheritance
     return templates.TemplateResponse("generator.html", {"request": request, "title": "Generator"})
 
-
-@app.get("/privacy-policy", response_class=HTMLResponse)
-async def privacy_policy(request: Request):
-    # 'privacy_policy.html' akan merender 'base.html' melalui template inheritance
-    return templates.TemplateResponse("privacy_policy.html", {"request": request, "title": "Privacy Policy"})
-
-
-@app.get("/data-deletion", response_class=HTMLResponse)
-async def data_deletion(request: Request):
-    # 'data_deletion.html' akan merender 'base.html' melalui template inheritance
-    return templates.TemplateResponse("data_deletion.html", {"request": request, "title": "Data Deletion Instructions"})
+@app.get("/shorts", response_class=HTMLResponse)
+async def shorts(request: Request):
+    # 'shorts.html' akan merender 'base.html' melalui template inheritance
+    return templates.TemplateResponse("shorts.html", {"request": request, "title": "Shorts"})
 
 
 def download_and_cut_video(youtube_url: str, start_time: int, end_time: int, output_title: str) -> str:
@@ -516,3 +540,221 @@ async def generate_clips(request: Request, youtube_url: str = Form(...)):
         "generator.html", 
         {"request": request, "clips": clips_result}
     )
+@app.post("/api/download-shorts")
+async def process_shorts(url: str = Form(...)):
+    if not url:
+        raise HTTPException(status_code=400, detail="URL tidak boleh kosong")
+        
+    try:
+        # Generate ID unik untuk nama file video agar tidak bentrok antar unduhan
+        file_id = str(uuid.uuid4())
+        output_template = f"static/clips/{file_id}.%(ext)s"
+        
+        # Konfigurasi yt-dlp untuk langsung download file mp4 utuh (video + audio) ke lokal disk
+        ydl_opts = {
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'outtmpl': output_template,
+            'quiet': True,
+            'no_warnings': True,
+        }
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # Ekstrak metadata sekaligus lakukan proses download fisik ke server laptop
+            info = ydl.extract_info(url, download=True)
+            video_title = info.get('title', 'YouTube Short Video')
+            
+            # Cari ekstensi asli file yang terdownload (biasanya mp4)
+            ext = info.get('ext', 'mp4')
+            local_filename = f"{file_id}.{ext}"
+            
+            # Ini adalah URL statis lokal laptop yang bisa diakses oleh HP kamu
+            local_video_url = f"/static/clips/{local_filename}"
+            
+            return JSONResponse({
+                "status": "success",
+                "title": video_title,
+                "videoUrl": local_video_url  # Kita kirimkan path statis lokal kita
+            })
+            
+    except Exception as e:
+        logger.error(f"Error memproses YouTube Shorts: {str(e)}")
+        return JSONResponse({
+            "status": "error",
+            "message": f"Gagal mengunduh video ke server. Error: {str(e)}"
+        }, status_code=500)
+
+@app.get("/channels", response_class=HTMLResponse)
+async def get_channels_page(request: Request):
+    return templates.TemplateResponse("channels.html", {"request": request})
+
+@app.post("/api/search-shorts")
+async def search_youtube_shorts(data: ChannelSearchRequest):
+    query = data.channel_name.strip()
+    page = data.page if data.page > 0 else 1
+    
+    if not query:
+        raise HTTPException(status_code=400, detail="Nama channel tidak boleh kosong")
+
+    if not query.startswith('@') and not query.startswith('http'):
+        query = f"@{query.replace(' ', '')}"
+        
+    url = f"https://www.youtube.com/{query}/shorts" if not query.startswith('http') else query
+
+    limit = 10
+    start_index = ((page - 1) * limit) + 1
+    end_index = page * limit
+
+    ydl_opts = {
+        'playliststart': start_index,
+        'playlistend': end_index,
+        'quiet': True,
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'outtmpl': f'{CLIPS_DIR}/%(id)s.%(ext)s',
+        'merge_output_format': 'mp4',
+        'no_warnings': True
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(url, download=True)
+            
+            if not info_dict or 'entries' not in info_dict:
+                return {"success": False, "message": "Tidak ada data ditemukan untuk halaman ini.", "shorts": []}
+
+            channel_title = info_dict.get('title', query).replace(" - Shorts", "")
+
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("SELECT video_id FROM posted_videos")
+            posted_ids = {row[0] for row in cursor.fetchall()}
+            conn.close()
+
+            extracted_shorts = []
+            for entry in info_dict['entries']:
+                if not entry:
+                    continue
+                
+                video_id = entry.get('id')
+                title = entry.get('title', 'Video Shorts')
+                
+                local_video_url = f"/static/clips/{video_id}.mp4"
+                thumb_url = f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
+                
+                extracted_shorts.append({
+                    "id": video_id,
+                    "title": title,
+                    "views": "Tersimpan Lokal", 
+                    "duration": "Shorts",
+                    "thumb": thumb_url,
+                    "video_url": local_video_url,
+                    "is_posted": video_id in posted_ids
+                })
+
+            if not extracted_shorts and page > 1:
+                return {"success": False, "message": "Anda telah mencapai akhir halaman.", "shorts": []}
+
+            return {
+                "success": True,
+                "current_page": page,
+                "has_more": len(extracted_shorts) == limit,
+                "channel": {
+                    "name": channel_title,
+                    "handle": query if query.startswith('@') else f"@{channel_title.lower().replace(' ', '')}",
+                    "avatar_initial": channel_title[0].upper()
+                },
+                "shorts": extracted_shorts
+            }
+
+    except Exception as e:
+        logger.error(f"Error downloading YouTube Shorts: {str(e)}")
+        return {"success": False, "message": f"Gagal mengambil/mendownload data: {str(e)}", "shorts": []}
+
+def crop_video_bottom(video_id: str):
+    input_path = f"static/clips/{video_id}.mp4"
+    if not os.path.exists(input_path) and os.path.exists(f"static/clips/{video_id}.mp5"):
+        input_path = f"static/clips/{video_id}.mp5"
+        
+    output_path = f"static/clips/{video_id}_cropped.mp4"
+    
+    if os.path.exists(output_path):
+        return output_path
+
+    command = [
+        'ffmpeg', '-y', '-i', input_path,
+        '-vf', 'crop=iw:ih*0.95:0:0,pad=iw:ih:0:0:black',
+        '-c:v', 'libx264', '-profile:v', 'main', '-level:v', '4.0', '-pix_fmt', 'yuv420p',
+        '-c:a', 'aac', output_path
+    ]
+    
+    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    
+    if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+        return output_path
+    else:
+        return input_path
+
+@app.post("/api/post-facebook")
+async def post_video_to_facebook(data: FacebookPostRequest):
+    try:
+        video_path = crop_video_bottom(data.video_id)
+    except Exception as crop_error:
+        return {"success": False, "message": f"Gagal memotong video: {str(crop_error)}"}
+        
+    if not os.path.exists(video_path):
+        raise HTTPException(status_code=404, detail="File video tidak ditemukan di server lokal.")
+        
+    try:
+        file_size = os.path.getsize(video_path)
+        
+        init_url = f"https://graph.facebook.com/v25.0/{FB_PAGE_ID}/video_reels"
+        init_payload = {
+            'upload_phase': 'START',
+            'access_token': FB_ACCESS_TOKEN
+        }
+        init_res = requests.post(init_url, data=init_payload).json()
+        
+        if "video_id" not in init_res:
+            return {"success": False, "message": f"Gagal START: {init_res.get('error', {}).get('message', 'Unknown error')}"}
+        
+        fb_video_id = init_res["video_id"]
+        fb_upload_url = init_res.get("upload_url", f"https://graph.facebook.com/v25.0/{fb_video_id}")
+        
+        headers = {
+            'Authorization': f'Bearer {FB_ACCESS_TOKEN}',
+            'offset': '0',
+            'file_size': str(file_size)
+        }
+        
+        with open(video_path, 'rb') as video_file:
+            files = {
+                'video_file_chunk': ('video.mp4', video_file, 'video/mp4')
+            }
+            upload_res = requests.post(fb_upload_url, headers=headers, files=files).json()
+            
+        if not upload_res.get("success") and "id" not in upload_res:
+            return {"success": False, "message": f"Gagal Transfer File: {upload_res.get('error', {}).get('message', 'File ditolak oleh Facebook')}"}
+            
+        publish_url = f"https://graph.facebook.com/v25.0/{FB_PAGE_ID}/video_reels"
+        publish_payload = {
+            'upload_phase': 'FINISH',
+            'video_id': fb_video_id,
+            'video_state': 'PUBLISHED',
+            'description': data.title,
+            'access_token': FB_ACCESS_TOKEN
+        }
+        
+        publish_res = requests.post(publish_url, data=publish_payload).json()
+        
+        if publish_res.get("success") or "id" in publish_res:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("INSERT OR IGNORE INTO posted_videos (video_id, fb_id) VALUES (?, ?)", (data.video_id, fb_video_id))
+            conn.commit()
+            conn.close()
+            
+            return {"success": True, "message": "Video berhasil diposting ke Facebook Reels!", "fb_id": fb_video_id}
+        else:
+            return {"success": False, "message": f"Gagal FINISH Publikasi: {publish_res.get('error', {}).get('message', 'Gagal mempublikasikan')}"}
+            
+    except Exception as e:
+        return {"success": False, "message": f"Terjadi kesalahan sistem: {str(e)}"}

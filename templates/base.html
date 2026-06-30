@@ -20,15 +20,19 @@
         </button>
     </div>
 
+    <!-- Mobile Menu -->
     <div id="mobileMenu" class="hidden lg:hidden bg-white border-b border-slate-200 p-4 space-y-2">
         <a href="/home" class="block p-2 font-medium bg-slate-100 rounded">Home</a>
         <a href="/clip" class="block p-2 text-slate-500 hover:text-slate-900">Clip Video</a>
+        <a href="/shorts" class="block p-2 text-slate-500 hover:text-slate-900">Short YouTube</a>
+        <a href="/channels" class="block p-2 text-slate-500 hover:text-slate-900">Channel YouTube</a>
         <a href="/discover" class="block p-2 text-slate-500 hover:text-slate-900">Discover Trends</a>
         <a href="/generator" class="block p-2 text-slate-500 hover:text-slate-900">Buat Video AI</a>
         <a href="/scripts" class="block p-2 text-slate-500 hover:text-slate-900">Script Editor</a>
     </div>
 
     <div class="flex">
+        <!-- Sidebar Desktop -->
         <aside class="hidden lg:flex w-64 border-r border-slate-200 p-6 flex-col bg-white h-screen sticky top-0">
             <div class="flex items-center gap-3 mb-10">
                 <a href="/">
@@ -52,6 +56,17 @@
                         {{ 'bg-slate-900 text-white shadow-sm' if request.url.path == '/clip' else 'text-slate-600 hover:bg-slate-100' }}">
                         <i class="fa-solid fa-scissors"></i> Clip Video
                     </a>
+
+                    <a href="/shorts" class="flex items-center gap-3 px-4 py-2.5 rounded-xl transition
+                        {{ 'bg-slate-900 text-white shadow-sm' if request.url.path == '/shorts' else 'text-slate-600 hover:bg-slate-100' }}">
+                        <i class="fa-brands fa-youtube text-red-500"></i> Short YouTube
+                    </a>
+
+                    <!-- Menu Baru: Channel YouTube -->
+                    <a href="/channels" class="flex items-center gap-3 px-4 py-2.5 rounded-xl transition
+    {{ 'bg-slate-900 text-white shadow-sm' if request.url.path == '/channels' else 'text-slate-600 hover:bg-slate-100' }}">
+    <i class="fa-brands fa-facebook text-blue-600"></i> Posting FB
+</a>
                     
                     <a href="/discover" class="flex items-center gap-3 px-4 py-2.5 rounded-xl transition
                         {{ 'bg-slate-900 text-white shadow-sm' if request.url.path == '/discover' else 'text-slate-600 hover:bg-slate-100' }}">

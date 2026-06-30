@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+
+{% block title %}Channel YouTube - ClipSpark{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto relative">
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none"></div>
+
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold tracking-tight text-slate-900 mb-2">Cari Channel YouTube</h1>
+        <p class="text-slate-500">Masukkan nama atau handle channel untuk menarik video Shorts (10 data per halaman).</p>
+    </div>
+
+    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-8">
+        <form id="searchForm" class="flex flex-col sm:flex-row gap-3">
+            <div class="relative flex-1">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+                    <i class="fa-brands fa-youtube text-lg"></i>
+                </span>
+                <input 
+                    type="text" 
+                    id="channelInput"
+                    placeholder="Contoh: @GadgetIn atau Praz Teguh" 
+                    class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition text-sm"
+                    required
+                >
+            </div>
+            <button 
+                type="submit" 
+                class="bg-slate-900 hover:bg-slate-800 text-white font-medium px-6 py-3 rounded-xl transition text-sm flex items-center justify-center gap-2"
+            >
+                <i class="fa-solid fa-magnifying-glass"></i> Cari Shorts
+            </button>
+        </form>
+    </div>
+
+    <div id="statusContainer" class="hidden text-center py-12">
+        <div id="loadingState" class="hidden">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-slate-900 border-t-transparent mb-3"></div>
+            <p class="text-sm text-slate-500">Mengambil 10 data Shorts terbaru untuk halaman ini...</p>
+        </div>
+        
+        <div id="emptyState" class="hidden">
+            <div class="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-400">
+                <i class="fa-solid fa-video-slash text-xl"></i>
+            </div>
+            <p class="font-medium text-slate-800" id="errorTitle">Channel tidak ditemukan</p>
+            <p class="text-sm text-slate-500 mt-1" id="errorDesc">Pastikan nama channel atau handle sudah benar.</p>
+        </div>
+    </div>
+
+    <div id="resultsContainer" class="hidden">
+        <div class="flex items-center justify-between mb-6 pb-4 border-b border-slate-200">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-slate-900 text-white rounded-full flex items-center justify-center font-bold text-lg" id="channelAvatar">
+                    ?
+                </div>
+                <div>
+                    <h3 class="font-bold text-lg text-slate-950" id="channelName">Nama Channel</h3>
+                    <p class="text-xs text-slate-500" id="channelHandle">@handle_channel</p>
+                </div>
+            </div>
+            <span id="pageBadge" class="bg-slate-900 text-white text-xs font-semibold px-3 py-1.5 rounded-full">Halaman 1</span>
+        </div>
+
+        <div id="shortsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
+        </div>
+
+        <div class="flex justify-center items-center gap-4 border-t border-slate-200 pt-6">
+            <button 
+                id="prevBtn"
+                onclick="changePage(-1)"
+                class="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+                <i class="fa-solid fa-arrow-left"></i> Sebelumnya
+            </button>
+            <span id="pageInfo" class="text-xs font-semibold text-slate-600">Halaman 1</span>
+            <button 
+                id="nextBtn"
+                onclick="changePage(1)"
+                class="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+                Selanjutnya <i class="fa-solid fa-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentPage = 1;
+    let currentChannel = "";
+    let hasMoreData = false;
+
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `pointer-events-auto flex items-center justify-between gap-3 p-4 rounded-xl shadow-lg border text-sm transition-all duration-300 transform translate-y-2 opacity-0 bg-white ${
+            type === 'success' ? 'border-green-200 text-green-800' : 'border-red-200 text-red-800'
+        }`;
+        
+        const icon = type === 'success' 
+            ? '<i class="fa-solid fa-circle-check text-green-500 text-lg"></i>' 
+            : '<i class="fa-solid fa-circle-exclamation text-red-500 text-lg"></i>';
+
+        toast.innerHTML = `
+            <div class="flex items-center gap-2.5">
+                ${icon}
+                <span class="font-medium">${message}</span>
+            </div>
+            <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-slate-600 transition">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        `;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.remove('translate-y-2', 'opacity-0');
+        }, 10);
+
+        setTimeout(() => {
+            toast.classList.add('opacity-0', 'translate-y-[-10px]');
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
+
+    document.getElementById('searchForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        currentChannel = document.getElementById('channelInput').value;
+        currentPage = 1; 
+        fetchShortsData();
+    });
+
+    async function fetchShortsData() {
+        const statusContainer = document.getElementById('statusContainer');
+        const loadingState = document.getElementById('loadingState');
+        const emptyState = document.getElementById('emptyState');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const shortsGrid = document.getElementById('shortsGrid');
+
+        statusContainer.classList.remove('hidden');
+        loadingState.classList.remove('hidden');
+        emptyState.classList.add('hidden');
+        
+        if(currentPage === 1) resultsContainer.classList.add('hidden');
+
+        try {
+            const response = await fetch('/api/search-shorts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ channel_name: currentChannel, page: currentPage })
+            });
+
+            if (!response.ok) throw new Error('Terjadi kesalahan koneksi ke server.');
+
+            const result = await response.json();
+            loadingState.classList.add('hidden');
+
+            if (!result.success || result.shorts.length === 0) {
+                if (currentPage === 1) {
+                    document.getElementById('errorTitle').innerText = "Gagal Memuat Data";
+                    document.getElementById('errorDesc').innerText = result.message || "Channel tidak ditemukan.";
+                    emptyState.classList.remove('hidden');
+                } else {
+                    statusContainer.classList.add('hidden');
+                    showToast(result.message || "Sudah mencapai batas halaman video.", 'error');
+                    hasMoreData = false;
+                    updatePaginationControls();
+                }
+                return;
+            }
+
+            statusContainer.classList.add('hidden');
+            resultsContainer.classList.remove('hidden');
+
+            document.getElementById('channelName').innerText = result.channel.name;
+            document.getElementById('channelHandle').innerText = result.channel.handle;
+            document.getElementById('channelAvatar').innerText = result.channel.avatar_initial;
+            
+            hasMoreData = result.has_more;
+            updatePaginationControls();
+
+            shortsGrid.innerHTML = '';
+            result.shorts.forEach(video => {
+                const encodedTitle = btoa(unescape(encodeURIComponent(video.title)));
+                const isPosted = video.is_posted;
+                const buttonClass = isPosted 
+                    ? 'w-full bg-green-600 text-white text-[11px] font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition' 
+                    : 'w-full bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition active:scale-95';
+                
+                const buttonContent = isPosted 
+                    ? '<i class="fa-solid fa-check"></i> Terposting' 
+                    : '<i class="fa-brands fa-facebook-f"></i> Auto Post FB';
+
+                const card = `
+                    <div class="group bg-white rounded-xl overflow-hidden border border-slate-200 hover:shadow-md transition duration-200 flex flex-col justify-between">
+                        <div onclick="window.open('${video.video_url}', '_blank')" class="cursor-pointer relative aspect-[9/16] bg-slate-900">
+                            <img src="${video.thumb}" alt="${video.title}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" onerror="this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80'">
+                            <span class="absolute bottom-2 right-2 bg-black/70 text-[10px] text-white px-1.5 py-0.5 rounded font-medium">
+                                ${video.duration}
+                            </span>
+                        </div>
+                        <div class="p-3 flex-1 flex flex-col justify-between gap-2">
+                            <div>
+                                <h4 onclick="window.open('${video.video_url}', '_blank')" class="cursor-pointer font-semibold text-xs line-clamp-2 text-slate-800 hover:text-slate-900 mb-1" title="${video.title}">
+                                    ${video.title}
+                                </h4>
+                                <p class="text-[10px] text-slate-500"><i class="fa-solid fa-play mr-1"></i> ${video.views}</p>
+                            </div>
+                            <button 
+                                onclick="uploadToFacebook(event, '${video.id}', '${encodedTitle}')"
+                                class="${buttonClass}"
+                                ${isPosted ? 'disabled' : ''}
+                            >
+                                ${buttonContent}
+                            </button>
+                        </div>
+                    </div>
+                `;
+                shortsGrid.innerHTML += card;
+            });
+
+            resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        } catch (error) {
+            loadingState.classList.add('hidden');
+            if(currentPage === 1) {
+                document.getElementById('errorTitle').innerText = "Sistem Error";
+                document.getElementById('errorDesc').innerText = error.message;
+                emptyState.classList.remove('hidden');
+            } else {
+                showToast(error.message, 'error');
+            }
+        }
+    }
+
+    function changePage(direction) {
+        currentPage += direction;
+        fetchShortsData();
+    }
+
+    function updatePaginationControls() {
+        document.getElementById('prevBtn').disabled = (currentPage === 1);
+        document.getElementById('nextBtn').disabled = !hasMoreData;
+        
+        const pageText = `Halaman ${currentPage}`;
+        document.getElementById('pageBadge').innerText = pageText;
+        document.getElementById('pageInfo').innerText = pageText;
+    }
+
+    async function uploadToFacebook(event, videoId, base64Title) {
+        event.stopPropagation();
+        
+        const title = decodeURIComponent(escape(atob(base64Title)));
+        const btn = event.currentTarget;
+        const originalText = btn.innerHTML;
+        
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Memposting...`;
+        btn.classList.replace('bg-blue-600', 'bg-slate-500');
+
+        try {
+            const response = await fetch('/api/post-facebook', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ video_id: videoId, title: title })
+            });
+
+            if (!response.ok) throw new Error('Gagal menghubungi server backend.');
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast('Sukses! Video berhasil di-auto post ke Facebook Reels.');
+                btn.innerHTML = `<i class="fa-solid fa-check"></i> Terposting`;
+                btn.classList.replace('bg-slate-500', 'bg-green-600');
+            } else {
+                showToast('Gagal memposting: ' + result.message, 'error');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                btn.classList.replace('bg-slate-500', 'bg-blue-600');
+            }
+
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            btn.classList.replace('bg-slate-500', 'bg-blue-600');
+        }
+    }
+</script>
+{% endblock %}

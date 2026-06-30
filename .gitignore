@@ -1,2 +1,8 @@
+__pycache__/
+*.pyc
 .env
-._pycache/
+venv/
+database.db
+
+static/clips/*
+!static/clips/.gitkeep
